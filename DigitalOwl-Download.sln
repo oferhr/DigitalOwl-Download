@@ -1,0 +1,33 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30413.136
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalOwl-Download", "DigitalOwl-Download.csproj", "{8A142BBC-3BA5-41AF-A6DB-F3CA3ACDACF9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8A142BBC-3BA5-41AF-A6DB-F3CA3ACDACF9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8A142BBC-3BA5-41AF-A6DB-F3CA3ACDACF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8A142BBC-3BA5-41AF-A6DB-F3CA3ACDACF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8A142BBC-3BA5-41AF-A6DB-F3CA3ACDACF9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3BB5076E-20D6-471E-8414-419EF5CC1A7D}
+	EndGlobalSection
+	GlobalSection(TeamFoundationVersionControl) = preSolution
+		SccNumberOfProjects = 2
+		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
+		SccTeamFoundationServer = https://oferh.visualstudio.com/
+		SccLocalPath0 = .
+		SccProjectUniqueName1 = DigitalOwl-Download.csproj
+		SccLocalPath1 = .
+	EndGlobalSection
+EndGlobal
