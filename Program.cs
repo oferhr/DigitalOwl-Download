@@ -331,7 +331,7 @@ namespace DigitalOwl_Download
                     var request = new HttpRequestMessage()
                     {
                         RequestUri = new Uri("https://api.digitalowl.app/cases/" + caseId + "/archive"),
-                        Method = HttpMethod.Post,
+                        Method = HttpMethod.Put,
 
                     };
                     client.DefaultRequestHeaders.Add("Authorization", "Bearer " + KEY);
