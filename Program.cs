@@ -279,8 +279,13 @@ namespace DigitalOwl_Download
                     {
                         response.EnsureSuccessStatusCode();
                         HttpContent content = response.Content;
+                        var fileName = Path.Combine(downloadDir, name + ".pdf");
+                        if (File.Exists(fileName))
+                        {
+                            File.Delete(fileName);
+                        }
                         var contentStream = await content.ReadAsStreamAsync();
-                        using (var fs = new FileStream(Path.Combine(downloadDir, name + ".pdf"), FileMode.CreateNew))
+                        using (var fs = new FileStream(fileName, FileMode.CreateNew))
                         {
                             await content.CopyToAsync(fs);
                         }
@@ -303,31 +308,34 @@ namespace DigitalOwl_Download
             try
             {
                 var lst = await GetAllBuisnessLines();
-                foreach (KeyValuePair<string, string> entry in lst)
+
+
+                using (var client = new HttpClient())
                 {
-                    var bLineID = entry.Value;
-                    using (var client = new HttpClient())
+                    var request = new HttpRequestMessage()
                     {
-                        var request = new HttpRequestMessage()
+                        RequestUri = new Uri("https://api.digitalowl.app/cases"),
+                        Method = HttpMethod.Get
+
+                    };
+
+                    client.DefaultRequestHeaders.Add("Authorization", "Bearer " + KEY);
+
+                    using (var response = await client.SendAsync(request))
+                    {
+                        var data = await response.Content.ReadAsStringAsync();
+                        var root = (JArray)JsonConvert.DeserializeObject(data);
+                        if (root.Count == 0)
                         {
-                            RequestUri = new Uri("https://api.digitalowl.app/cases"),
-                            Method = HttpMethod.Get
-
-                        };
-
-                        client.DefaultRequestHeaders.Add("Authorization", "Bearer " + KEY);
-
-                        using (var response = await client.SendAsync(request))
+                            return null;
+                        }
+                        
+                        foreach (KeyValuePair<string, string> entry in lst)
                         {
-                            var data = await response.Content.ReadAsStringAsync();
-                            var root = (JArray)JsonConvert.DeserializeObject(data);
-                            if (root.Count == 0)
-                            {
-                                return null;
-                            }
+                            var bLineID = entry.Value;
                             var query = root
                                 .Where(r => (string)r["businessLineId"] == bLineID && (string)r["externalStatus"] == "completed")
-                                .Select(s => new Completed { id = (string)s["id"],  name = (string)s["name"], bline = entry.Key })
+                                .Select(s => new Completed { id = (string)s["id"], name = (string)s["name"], bline = entry.Key })
                                 .ToList();
 
 
@@ -335,6 +343,7 @@ namespace DigitalOwl_Download
                         }
                     }
                 }
+
                 for (int i = 0; i < cases.Count(); i++)
                 {
                     var completedCase = cases[i];
@@ -368,7 +377,7 @@ namespace DigitalOwl_Download
                                 completedCase.stats = query;
                             }
                         }
-                        catch 
+                        catch
                         {
                             completedCase.stats = new Stats
                             {
@@ -378,12 +387,12 @@ namespace DigitalOwl_Download
                                 status = ""
                             };
                         }
-                        
+
                     }
                 }
                 return cases;
             }
-                    
+
             catch (Exception ex)
             {
                 SimpleLogger.SimpleLog.Info("Error while checking for completed cases");
@@ -492,6 +501,9 @@ namespace DigitalOwl_Download
                     bLineID = await GetBLineIdFromOwl(bline);
                     lst.Add(name, bLineID);
                 }
+                xlWorkbook.Save();
+                xlWorkbook.Close();
+                xlApp.Quit();
                 return lst;
             }
             catch (Exception ex)
