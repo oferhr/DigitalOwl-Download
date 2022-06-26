@@ -19,6 +19,7 @@ namespace DigitalOwl_Download
         private static string CurrentBLine;
         private static string excelFile;
         private static string ArchiveText = "ארכיון";
+        private static string ArchivePortalText = "archived";
         private static string KEY = "eyJjbGllbnRfaWQiOiI0dzFPNUlJTE9GajdSajhvckZqTkJvR3Z4RVkwNlhUQyIsImNsaWVudF9zZWNyZXQiOiJsYWNBcFd0VTFHeXRfSVNlVGZCZVdweGRBRVJ3NG94Zm9EWkNvZmw0NjI2N3p1Q3ZSRUFTRjdpSEFDWDRnSmIzIiwiYXVkaWVuY2UiOiJodHRwczovL2FwaS5kaWdpdGFsb3dsLmFwcCIsImdyYW50X3R5cGUiOiJjbGllbnRfY3JlZGVudGlhbHMifQ==";
         private static Dictionary<string, string> bLines = new Dictionary<string, string>
         {
@@ -80,6 +81,8 @@ namespace DigitalOwl_Download
                 xlWorkbook = xlApp.Workbooks.Open(excelFile);
                 xlWorksheet = (Excel._Worksheet)xlWorkbook.ActiveSheet;
                 xlWorksheet.Range[E_STATUS + row, E_STATUS + row].Value2 = ArchiveText;
+                xlWorksheet.Range[E_OWLSTATUS + row, E_OWLSTATUS + row].Value2 = ArchivePortalText;
+                
                 xlWorkbook.Save();
                 xlWorkbook.Close();
                 xlApp.Quit();
@@ -364,17 +367,18 @@ namespace DigitalOwl_Download
                             {
                                 response.EnsureSuccessStatusCode();
                                 var data = await response.Content.ReadAsStringAsync();
-                                var root = (JArray)JsonConvert.DeserializeObject(data);
-                                if (root.Count == 0)
+                                var json = JObject.Parse(data);
+
+                                var stats = new Stats
                                 {
-                                    return null;
-                                }
-                                var query = root
-                                    .Select(s => new Stats { pages = (int)s["totalPageCount"], mediaData = (int)s["pagesWithMedicalDataCount"], handWritten = (int)s["handWrittenPageCount"], status = (string)s["status"] })
-                                    .FirstOrDefault();
+                                    pages = (int)json["totalPageCount"],
+                                    mediaData = (int)json["pagesWithMedicalDataCount"],
+                                    handWritten = (int)json["handWrittenPageCount"],
+                                    status = (string)json["status"]
+                                };
 
 
-                                completedCase.stats = query;
+                                completedCase.stats = stats;
                             }
                         }
                         catch
