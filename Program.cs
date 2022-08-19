@@ -18,9 +18,11 @@ namespace DigitalOwl_Download
         private static string downloadDir;
         private static string CurrentBLine;
         private static string excelFile;
+        private static string baseURL;
+        private static string keyFile;
         private static string ArchiveText = "ארכיון";
         private static string ArchivePortalText = "archived";
-        private static string KEY = "eyJjbGllbnRfaWQiOiI0dzFPNUlJTE9GajdSajhvckZqTkJvR3Z4RVkwNlhUQyIsImNsaWVudF9zZWNyZXQiOiJsYWNBcFd0VTFHeXRfSVNlVGZCZVdweGRBRVJ3NG94Zm9EWkNvZmw0NjI2N3p1Q3ZSRUFTRjdpSEFDWDRnSmIzIiwiYXVkaWVuY2UiOiJodHRwczovL2FwaS5kaWdpdGFsb3dsLmFwcCIsImdyYW50X3R5cGUiOiJjbGllbnRfY3JlZGVudGlhbHMifQ==";
+        private static string KEY = string.Empty;
         private static Dictionary<string, string> bLines = new Dictionary<string, string>
         {
             {"defBlName", "914aa316-2243-4efb-aeea-a61758772b38" },
@@ -32,8 +34,11 @@ namespace DigitalOwl_Download
             downloadDir = ConfigurationManager.AppSettings["downloadDir"];
             excelFile = ConfigurationManager.AppSettings["excelFile"];
             CurrentBLine = ConfigurationManager.AppSettings["buisnessLine"];
+            baseURL = ConfigurationManager.AppSettings["baseUrl"];
+            keyFile = ConfigurationManager.AppSettings["keyFile"];
 
-            if (string.IsNullOrEmpty(downloadDir) ||  string.IsNullOrEmpty(excelFile) || string.IsNullOrEmpty(CurrentBLine))
+            if (string.IsNullOrEmpty(downloadDir) ||  string.IsNullOrEmpty(excelFile) || string.IsNullOrEmpty(CurrentBLine) ||
+                string.IsNullOrEmpty(baseURL) || string.IsNullOrEmpty(keyFile))
             {
                 throw new Exception("פרטי קונפיגורציה חסרים");
             }
@@ -41,7 +46,12 @@ namespace DigitalOwl_Download
             {
                 Directory.CreateDirectory(downloadDir);
             }
-            
+           
+            KEY = GetKey();
+            if (string.IsNullOrEmpty(KEY))
+            {
+                throw new Exception("בעיה בזמן נסיון לקבל את מחרוזת הרישיו - אנא בדוק את קובץ הלוג");
+            }
 
             var list = await GetCasesAsync();
             if(list.Count() == 0)
@@ -135,9 +145,9 @@ namespace DigitalOwl_Download
                 var actualRow = lastRow;
                 for (int i = lastRow; i > 1; i--)
                 {
-                    var name = xlWorksheet.Range[E_NAME + i, E_NAME + i].Value2.ToString();
-                    var status = xlWorksheet.Range[E_STATUS + i, E_STATUS + i].Value2.ToString();
-                    if (name == item.name && status != ArchiveText)
+                    var name = xlWorksheet.Range[E_NAME + i, E_NAME + i].Value2.ToString().Trim();
+                    var status = xlWorksheet.Range[E_STATUS + i, E_STATUS + i].Value2.ToString().Trim();
+                    if (name == item.name.Trim() && status != ArchiveText)
                     {
                         found = true;
                         xlWorksheet.Range[E_DATEDOWNLOAD + i, E_DATEDOWNLOAD + i].Value2 = FormatExcelDate(DateTime.Now);
@@ -146,7 +156,7 @@ namespace DigitalOwl_Download
                         xlWorksheet.Range[E_HANDWRITTEN + i, E_HANDWRITTEN + i].Value2 = item.stats.handWritten.ToString();
                         xlWorksheet.Range[E_OWLSTATUS + i, E_OWLSTATUS + i].Value2 = item.stats.status.ToString();
                         xlWorksheet.Range[E_STATUS + i, E_STATUS + i].Value2 = "הורדה";
-
+                        actualRow = i;
                     }
                 }
                 if (!found)
@@ -154,13 +164,13 @@ namespace DigitalOwl_Download
                     var row = lastRow + 1;
                     actualRow = row;
                     xlWorksheet.Range[E_DATE + row, E_DATE + row].Value2 = FormatExcelDate(DateTime.Now);
-                    xlWorksheet.Range[E_NAME + row, E_NAME + row].Value2 = item.name;
+                    xlWorksheet.Range[E_NAME + row, E_NAME + row].Value2 = item.name.Trim();
                     xlWorksheet.Range[E_STATUS + row, E_STATUS + row].Value2 = "לא קיים באקסל";
                     xlWorksheet.Range[E_NUMPAGES + row, E_NUMPAGES + row].Value2 = item.stats.pages.ToString();
                     xlWorksheet.Range[E_MEDICALDATA + row, E_MEDICALDATA + row].Value2 = item.stats.mediaData.ToString();
                     xlWorksheet.Range[E_HANDWRITTEN + row, E_HANDWRITTEN + row].Value2 = item.stats.handWritten.ToString();
                     xlWorksheet.Range[E_OWLSTATUS + row, E_OWLSTATUS + row].Value2 = item.stats.status.ToString();
-                    xlWorksheet.Range[E_BLINE + row, E_BLINE + row].Value2 = item.bline.ToString();
+                    xlWorksheet.Range[E_BLINE + row, E_BLINE + row].Value2 = item.bline.ToString().Trim();
                     xlWorksheet.Range[E_DATEDOWNLOAD + row, E_DATEDOWNLOAD + row].Value2 = FormatExcelDate(DateTime.Now);
                 }
 
@@ -216,8 +226,8 @@ namespace DigitalOwl_Download
 
                 for (int i = lastRow; i > 1; i--)
                 {
-                    var name = xlWorksheet.Range[E_NAME + i, E_NAME + i].Value2.ToString();
-                    var status = xlWorksheet.Range[E_STATUS + i, E_STATUS + i].Value2.ToString();
+                    var name = xlWorksheet.Range[E_NAME + i, E_NAME + i].Value2.ToString().Trim();
+                    var status = xlWorksheet.Range[E_STATUS + i, E_STATUS + i].Value2.ToString().Trim();
                     if (name == data.name && status == data.type)
                     {
                         xlWorksheet.Range[E_REMARK + i, E_REMARK + i].Value2 = data.date;
@@ -271,7 +281,7 @@ namespace DigitalOwl_Download
                 {
                     var request = new HttpRequestMessage()
                     {
-                        RequestUri = new Uri("https://api.digitalowl.app/cases/" + id + "/summary"),
+                        RequestUri = new Uri(baseURL + "/cases/" + id + "/summary"),
                         Method = HttpMethod.Get
 
                     };
@@ -317,7 +327,7 @@ namespace DigitalOwl_Download
                 {
                     var request = new HttpRequestMessage()
                     {
-                        RequestUri = new Uri("https://api.digitalowl.app/cases"),
+                        RequestUri = new Uri(baseURL + "/cases"),
                         Method = HttpMethod.Get
 
                     };
@@ -356,7 +366,7 @@ namespace DigitalOwl_Download
                         {
                             var request = new HttpRequestMessage()
                             {
-                                RequestUri = new Uri("https://api.digitalowl.app/cases/" + completedCase.id + "/statistics"),
+                                RequestUri = new Uri(baseURL + "/cases/" + completedCase.id + "/statistics"),
                                 Method = HttpMethod.Get
 
                             };
@@ -413,7 +423,7 @@ namespace DigitalOwl_Download
                 {
                     var request = new HttpRequestMessage()
                     {
-                        RequestUri = new Uri("https://api.digitalowl.app/businessLines"),
+                        RequestUri = new Uri(baseURL + "/businessLines"),
                         Method = HttpMethod.Get,
 
                     };
@@ -453,7 +463,7 @@ namespace DigitalOwl_Download
                 {
                     var request = new HttpRequestMessage()
                     {
-                        RequestUri = new Uri("https://api.digitalowl.app/cases/" + caseId + "/archive"),
+                        RequestUri = new Uri(baseURL + "/cases/" + caseId + "/archive"),
                         Method = HttpMethod.Put,
 
                     };
@@ -556,6 +566,30 @@ namespace DigitalOwl_Download
         {
             return dt.ToString("dd/MM/yyyy H:mm:ss");
         }
+
+
+        private static string GetKey()
+        {
+            try
+            {
+                string filePassword = "xDzp3Z^Seg3yQA6s";
+                string key = string.Empty;
+                var word = new Microsoft.Office.Interop.Word.Application();
+                var doc = word.Documents.Open(keyFile, ReadOnly: true, PasswordDocument: filePassword);
+                foreach (Microsoft.Office.Interop.Word.Paragraph objParagraph in doc.Paragraphs)
+                {
+                    key = objParagraph.Range.Text.Trim();
+                }
+                return key;
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.SimpleLog.Info("Error while trying to get the license key from file - " + ex.Message);
+                SimpleLogger.SimpleLog.Log(ex);
+                return string.Empty;
+            }
+        }
+
 
         private static string E_DATE = "A";
         private static string E_NAME = "B";
