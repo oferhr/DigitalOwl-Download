@@ -58,20 +58,27 @@ namespace DigitalOwl_Download
             {
                 return;
             }
+            SimpleLogger.SimpleLog.Info("looping cases");
             for (int i = 0; i < list.Count(); i++)
             {
                 var item = list[i];
+                SimpleLogger.SimpleLog.Info("downloading case - " + item.name);
                 var download = await DownloadFile(item.id, item.name);
                 if (download)
                 {
+                    SimpleLogger.SimpleLog.Info("download OK");
                     var row = WriteToExcel(item);
+                    SimpleLogger.SimpleLog.Info("write to excel row - " + row);
                     if (row == -1)
                     {
                         throw new Exception("Failed to write to excel file");
                     }
+                    
                     var fok = await ArchiveCase(item.name, item.id);
+                    SimpleLogger.SimpleLog.Info("archiving result - "  + fok.ToString());
                     if (fok)
                     {
+                        SimpleLogger.SimpleLog.Info("updating archive text for row - " + row);
                         await UpdateExcelArchived(row);
                     }
                 }
@@ -136,6 +143,7 @@ namespace DigitalOwl_Download
             Excel.Application xlApp = null;
             try
             {
+                SimpleLogger.SimpleLog.Info("write to excel case - " + item.name);
                 xlApp = new Excel.Application();
                 xlApp.Visible = false;
                 xlWorkbook = xlApp.Workbooks.Open(excelFile);
@@ -149,6 +157,7 @@ namespace DigitalOwl_Download
                     var status = xlWorksheet.Range[E_STATUS + i, E_STATUS + i].Value2.ToString().Trim();
                     if (name == item.name.Trim() && status != ArchiveText)
                     {
+                        SimpleLogger.SimpleLog.Info("case name found in excel - " + item.name);
                         found = true;
                         xlWorksheet.Range[E_DATEDOWNLOAD + i, E_DATEDOWNLOAD + i].Value2 = FormatExcelDate(DateTime.Now);
                         xlWorksheet.Range[E_NUMPAGES + i, E_NUMPAGES + i].Value2 = item.stats.pages.ToString();
@@ -161,6 +170,7 @@ namespace DigitalOwl_Download
                 }
                 if (!found)
                 {
+                    SimpleLogger.SimpleLog.Info("case name NOT found in excel - " + item.name);
                     var row = lastRow + 1;
                     actualRow = row;
                     xlWorksheet.Range[E_DATE + row, E_DATE + row].Value2 = FormatExcelDate(DateTime.Now);
@@ -174,7 +184,7 @@ namespace DigitalOwl_Download
                     xlWorksheet.Range[E_DATEDOWNLOAD + row, E_DATEDOWNLOAD + row].Value2 = FormatExcelDate(DateTime.Now);
                 }
 
-
+                SimpleLogger.SimpleLog.Info("write to excel sccessfuy - closing excel");
                 xlWorkbook.Save();
                 xlWorkbook.Close();
                 xlApp.Quit();
@@ -356,10 +366,13 @@ namespace DigitalOwl_Download
                         }
                     }
                 }
-
+                SimpleLogger.SimpleLog.Info("Number of cases found - " + cases.Count());
                 for (int i = 0; i < cases.Count(); i++)
                 {
+                    
                     var completedCase = cases[i];
+
+                    SimpleLogger.SimpleLog.Info("case number " + (i + 1) + " - " + completedCase.name);
                     using (var client = new HttpClient())
                     {
                         try
@@ -404,6 +417,8 @@ namespace DigitalOwl_Download
 
                     }
                 }
+                
+
                 return cases;
             }
 
@@ -459,6 +474,7 @@ namespace DigitalOwl_Download
         {
             try
             {
+                SimpleLogger.SimpleLog.Info("archiving case - " + name);
                 using (var client = new HttpClient())
                 {
                     var request = new HttpRequestMessage()
@@ -471,6 +487,9 @@ namespace DigitalOwl_Download
 
                     using (var response = await client.SendAsync(request))
                     {
+                        var msg = await response.Content.ReadAsStringAsync();
+                        SimpleLogger.SimpleLog.Info("response body");
+                        SimpleLogger.SimpleLog.Log(msg);
                         response.EnsureSuccessStatusCode();
                     }
                 }
@@ -481,6 +500,7 @@ namespace DigitalOwl_Download
             {
 
                 SimpleLogger.SimpleLog.Info("Error while archiving a case. Case ID - " + name);
+                SimpleLogger.SimpleLog.Info("URL - " + baseURL + "/cases/" + caseId + "/archive");
                 SimpleLogger.SimpleLog.Log(ex);
                 BuildError(name, "Error while archiving a case. - " + ex.Message, "הורדה");
                 return false;
@@ -570,12 +590,13 @@ namespace DigitalOwl_Download
 
         private static string GetKey()
         {
+            Microsoft.Office.Interop.Word.Application word = null;
+            Microsoft.Office.Interop.Word.Document doc = null;
             try
             {
-                string filePassword = "xDzp3Z^Seg3yQA6s";
                 string key = string.Empty;
-                var word = new Microsoft.Office.Interop.Word.Application();
-                var doc = word.Documents.Open(keyFile, ReadOnly: true, PasswordDocument: filePassword);
+                word = new Microsoft.Office.Interop.Word.Application();
+                doc = word.Documents.Open(keyFile);
                 foreach (Microsoft.Office.Interop.Word.Paragraph objParagraph in doc.Paragraphs)
                 {
                     key = objParagraph.Range.Text.Trim();
@@ -587,6 +608,21 @@ namespace DigitalOwl_Download
                 SimpleLogger.SimpleLog.Info("Error while trying to get the license key from file - " + ex.Message);
                 SimpleLogger.SimpleLog.Log(ex);
                 return string.Empty;
+            }
+            finally
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+
+                if (doc != null)
+                {
+                    Marshal.ReleaseComObject(doc);
+                }
+
+                if (word != null)
+                {
+                    Marshal.ReleaseComObject(word);
+                }
             }
         }
 
