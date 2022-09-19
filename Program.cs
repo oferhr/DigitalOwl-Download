@@ -352,18 +352,25 @@ namespace DigitalOwl_Download
                         {
                             return null;
                         }
-                        
-                        foreach (KeyValuePair<string, string> entry in lst)
-                        {
-                            var bLineID = entry.Value;
-                            var query = root
-                                .Where(r => (string)r["businessLineId"] == bLineID && (string)r["externalStatus"] == "completed")
-                                .Select(s => new Completed { id = (string)s["id"], name = (string)s["name"], bline = entry.Key })
+
+                        var query = root
+                                .Where(r => (string)r["externalStatus"] == "completed")
+                                .Select(s => new Completed { id = (string)s["id"], name = (string)s["name"], bline = getBlineFromList((string)s["businessLineId"], lst) })
                                 .ToList();
 
 
-                            cases.AddRange(query);
-                        }
+                        cases.AddRange(query);
+                        //foreach (KeyValuePair<string, string> entry in lst)
+                        //{
+                        //    var bLineID = entry.Value;
+                        //    var query = root
+                        //        .Where(r => (string)r["businessLineId"] == bLineID && (string)r["externalStatus"] == "completed")
+                        //        .Select(s => new Completed { id = (string)s["id"], name = (string)s["name"], bline = entry.Key })
+                        //        .ToList();
+
+
+                        //    cases.AddRange(query);
+                        //}
                     }
                 }
                 SimpleLogger.SimpleLog.Info("Number of cases found - " + cases.Count());
@@ -429,6 +436,20 @@ namespace DigitalOwl_Download
                 //return "ERROR";
                 return new List<Completed>();
             }
+        }
+
+        private static string getBlineFromList(string blId, Dictionary<string, string> lst)
+        {
+            foreach (KeyValuePair<string, string> entry in lst)
+            {
+                var bLineID = entry.Value;
+                var bLineName = entry.Key;
+                if (bLineID == blId)
+                {
+                    return bLineName;
+                }
+            }
+            return blId;
         }
         private static async Task<string> GetBLineIdFromOwl(string bline)
         {
@@ -601,6 +622,8 @@ namespace DigitalOwl_Download
                 {
                     key = objParagraph.Range.Text.Trim();
                 }
+                doc.Close();
+                word.Quit();
                 return key;
             }
             catch (Exception ex)
