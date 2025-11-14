@@ -691,13 +691,6 @@ namespace DigitalOwl_Download
                 using (var response = await _httpClient.SendAsync(request))
                 {
                     response.EnsureSuccessStatusCode();
-
-                    // Only log response body on errors (reduce information disclosure)
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        var msg = await response.Content.ReadAsStringAsync();
-                        SimpleLogger.SimpleLog.Warning($"Archive response status: {response.StatusCode}");
-                    }
                 }
 
                 SimpleLogger.SimpleLog.Info($"Case archived successfully: {name}");
