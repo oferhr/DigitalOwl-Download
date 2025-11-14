@@ -10,6 +10,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Excel = Microsoft.Office.Interop.Excel;
+using Azure.Security.KeyVault.Secrets;
+using Azure.Identity;
 
 namespace DigitalOwl_Download
 {
@@ -19,7 +21,8 @@ namespace DigitalOwl_Download
         private static string CurrentBLine;
         private static string excelFile;
         private static string baseURL;
-        private static string keyFile;
+        private static string keyVaultUrl;
+        private static string keyVaultSecretName;
         private static string ArchiveText = "ארכיון";
         private static string ArchivePortalText = "archived";
         private static string KEY = string.Empty;
@@ -35,22 +38,23 @@ namespace DigitalOwl_Download
             excelFile = ConfigurationManager.AppSettings["excelFile"];
             CurrentBLine = ConfigurationManager.AppSettings["buisnessLine"];
             baseURL = ConfigurationManager.AppSettings["baseUrl"];
-            keyFile = ConfigurationManager.AppSettings["keyFile"];
+            keyVaultUrl = ConfigurationManager.AppSettings["keyVaultUrl"];
+            keyVaultSecretName = ConfigurationManager.AppSettings["keyVaultSecretName"];
 
             if (string.IsNullOrEmpty(downloadDir) ||  string.IsNullOrEmpty(excelFile) || string.IsNullOrEmpty(CurrentBLine) ||
-                string.IsNullOrEmpty(baseURL) || string.IsNullOrEmpty(keyFile))
+                string.IsNullOrEmpty(baseURL) || string.IsNullOrEmpty(keyVaultUrl) || string.IsNullOrEmpty(keyVaultSecretName))
             {
-                throw new Exception("פרטי קונפיגורציה חסרים");
+                throw new Exception("פרטי קונפיגורציה חסרים - Missing configuration details");
             }
             if (!Directory.Exists(downloadDir))
             {
                 Directory.CreateDirectory(downloadDir);
             }
-           
-            KEY = GetKey();
+
+            KEY = await GetKeyFromAzureKeyVault();
             if (string.IsNullOrEmpty(KEY))
             {
-                throw new Exception("בעיה בזמן נסיון לקבל את מחרוזת הרישיו - אנא בדוק את קובץ הלוג");
+                throw new Exception("בעיה בזמן נסיון לקבל את מחרוזת הרישיו - Failed to retrieve API key from Azure Key Vault");
             }
 
             var list = await GetCasesAsync();
@@ -609,7 +613,71 @@ namespace DigitalOwl_Download
         }
 
 
-        private static string GetKey()
+        /// <summary>
+        /// Retrieves the API key from Azure Key Vault using managed identity or Azure CLI authentication
+        /// </summary>
+        /// <returns>The API key as a string</returns>
+        private static async Task<string> GetKeyFromAzureKeyVault()
+        {
+            try
+            {
+                SimpleLogger.SimpleLog.Info("Attempting to retrieve API key from Azure Key Vault");
+
+                // Create a SecretClient using DefaultAzureCredential
+                // This will attempt authentication in the following order:
+                // 1. Environment variables (AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_CLIENT_SECRET)
+                // 2. Managed Identity (when running in Azure)
+                // 3. Visual Studio authentication
+                // 4. Azure CLI authentication
+                // 5. Azure PowerShell authentication
+                var credential = new DefaultAzureCredential();
+                var client = new SecretClient(new Uri(keyVaultUrl), credential);
+
+                // Retrieve the secret
+                KeyVaultSecret secret = await client.GetSecretAsync(keyVaultSecretName);
+
+                if (secret == null || string.IsNullOrEmpty(secret.Value))
+                {
+                    SimpleLogger.SimpleLog.Error($"Secret '{keyVaultSecretName}' retrieved but value is empty");
+                    return string.Empty;
+                }
+
+                SimpleLogger.SimpleLog.Info("Successfully retrieved API key from Azure Key Vault");
+                return secret.Value;
+            }
+            catch (Azure.RequestFailedException ex)
+            {
+                SimpleLogger.SimpleLog.Error($"Azure Key Vault request failed: {ex.Status} - {ex.Message}");
+                SimpleLogger.SimpleLog.Log(ex);
+
+                // Provide helpful error messages
+                if (ex.Status == 401 || ex.Status == 403)
+                {
+                    SimpleLogger.SimpleLog.Error("Authentication/Authorization failed. Ensure the application has proper access to Key Vault.");
+                    SimpleLogger.SimpleLog.Error("Required permissions: Get secrets from Key Vault access policy or RBAC role 'Key Vault Secrets User'");
+                }
+                else if (ex.Status == 404)
+                {
+                    SimpleLogger.SimpleLog.Error($"Secret '{keyVaultSecretName}' not found in Key Vault '{keyVaultUrl}'");
+                }
+
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.SimpleLog.Error("Unexpected error while retrieving API key from Azure Key Vault");
+                SimpleLogger.SimpleLog.Log(ex);
+                return string.Empty;
+            }
+        }
+
+        #region Legacy GetKey Method - Deprecated
+        /// <summary>
+        /// [DEPRECATED] Legacy method to get key from Word document - replaced by Azure Key Vault
+        /// Kept for reference only - DO NOT USE
+        /// </summary>
+        [Obsolete("This method is deprecated. Use GetKeyFromAzureKeyVault() instead.")]
+        private static string GetKeyFromWordDocument(string keyFilePath)
         {
             Microsoft.Office.Interop.Word.Application word = null;
             Microsoft.Office.Interop.Word.Document doc = null;
@@ -617,7 +685,7 @@ namespace DigitalOwl_Download
             {
                 string key = string.Empty;
                 word = new Microsoft.Office.Interop.Word.Application();
-                doc = word.Documents.Open(keyFile);
+                doc = word.Documents.Open(keyFilePath);
                 foreach (Microsoft.Office.Interop.Word.Paragraph objParagraph in doc.Paragraphs)
                 {
                     key = objParagraph.Range.Text.Trim();
@@ -648,6 +716,7 @@ namespace DigitalOwl_Download
                 }
             }
         }
+        #endregion
 
 
         private static string E_DATE = "A";
