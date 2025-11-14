@@ -24,6 +24,7 @@ namespace DigitalOwl_Download
         private static string baseURL;
         private static string keyVaultUrl;
         private static string keyVaultSecretName;
+        private static string keyFile;
         private static string ArchiveText = "ארכיון";
         private static string ArchivePortalText = "archived";
         private static string KEY = string.Empty;
@@ -52,7 +53,7 @@ namespace DigitalOwl_Download
             keyVaultSecretName = ConfigurationManager.AppSettings["keyVaultSecretName"];
 
             if (string.IsNullOrEmpty(downloadDir) ||  string.IsNullOrEmpty(excelFile) || string.IsNullOrEmpty(CurrentBLine) ||
-                string.IsNullOrEmpty(baseURL) || string.IsNullOrEmpty(keyVaultUrl) || string.IsNullOrEmpty(keyVaultSecretName))
+                string.IsNullOrEmpty(baseURL))
             {
                 throw new Exception("פרטי קונפיגורציה חסרים - Missing configuration details");
             }
@@ -61,10 +62,32 @@ namespace DigitalOwl_Download
                 Directory.CreateDirectory(downloadDir);
             }
 
-            KEY = await GetKeyFromAzureKeyVault();
+            // Try Azure Key Vault first (preferred), fallback to legacy Word document method
+            if (!string.IsNullOrEmpty(keyVaultUrl) && !string.IsNullOrEmpty(keyVaultSecretName))
+            {
+                SimpleLogger.SimpleLog.Info("Using Azure Key Vault for API key retrieval");
+                KEY = await GetKeyFromAzureKeyVault();
+            }
+            else
+            {
+                // Fallback to legacy method for backward compatibility
+                keyFile = ConfigurationManager.AppSettings["keyFile"];
+                if (!string.IsNullOrEmpty(keyFile))
+                {
+                    SimpleLogger.SimpleLog.Warning("Using deprecated Word document method for API key. Please migrate to Azure Key Vault for improved security.");
+                    #pragma warning disable CS0618 // Type or member is obsolete
+                    KEY = GetKeyFromWordDocument(keyFile);
+                    #pragma warning restore CS0618
+                }
+                else
+                {
+                    throw new Exception("No API key configuration found. Please configure either Azure Key Vault or keyFile.");
+                }
+            }
+
             if (string.IsNullOrEmpty(KEY))
             {
-                throw new Exception("בעיה בזמן נסיון לקבל את מחרוזת הרישיו - Failed to retrieve API key from Azure Key Vault");
+                throw new Exception("בעיה בזמן נסיון לקבל את מחרוזת הרישיו - Failed to retrieve API key");
             }
 
             var list = await GetCasesAsync();
@@ -559,9 +582,9 @@ namespace DigitalOwl_Download
 
                             var stats = new Stats
                             {
-                                pages = json["totalPageCount"]?.Value<int>() ?? 0,
-                                mediaData = json["pagesWithMedicalDataCount"]?.Value<int>() ?? 0,
-                                handWritten = json["handWrittenPageCount"]?.Value<int>() ?? 0,
+                                pages = json["totalPageCount"]?.Value<int>() ?? -1,
+                                mediaData = json["pagesWithMedicalDataCount"]?.Value<int>() ?? -1,
+                                handWritten = json["handWrittenPageCount"]?.Value<int>() ?? -1,
                                 status = json["status"]?.ToString() ?? string.Empty
                             };
 
