@@ -425,6 +425,14 @@ namespace DigitalOwl_Download
         {
             var fullPath = Path.GetFullPath(filePath);
             var allowedPath = Path.GetFullPath(allowedDirectory);
+
+            // Ensure allowedPath ends with directory separator to prevent sibling directory traversal
+            // Without this, "C:\allowed" would match "C:\allowed_malicious"
+            if (!allowedPath.EndsWith(Path.DirectorySeparatorChar.ToString()))
+            {
+                allowedPath += Path.DirectorySeparatorChar;
+            }
+
             return fullPath.StartsWith(allowedPath, StringComparison.OrdinalIgnoreCase);
         }
 
